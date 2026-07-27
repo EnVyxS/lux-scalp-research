@@ -22,11 +22,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # `cache: 'pip'` menuntut adanya berkas dependensi di akar repo
-      # (`requirements.txt` atau `pyproject.toml`). Bila tidak ada, langkah ini
-      # GAGAL keras — itulah cacat 24 yang membuat keempat run pertama repo ini
-      # merah pada 6-18 detik, mati sebelum pytest. Pagarnya ada di
-      # tests/test_kebutuhan_pip.py.
+      # Opsi cache pip pada setup-python (blok `with` di bawah) menuntut adanya
+      # berkas dependensi di akar repo: requirements.txt atau pyproject.toml.
+      # Bila tidak ada, langkah ini GAGAL keras. Itulah cacat 24, yang membuat
+      # keempat run pertama repo ini merah pada 6-18 detik, mati sebelum pytest.
+      # Pagarnya ada di tests/test_kebutuhan_pip.py.
+      #
+      # Catatan penting bagi penyunting berikutnya: pagar
+      # test_cache_pip_sudah_ada_dan_tunggal mencacah kemunculan literal
+      # direktif itu di SELURUH berkas, termasuk komentar. Jangan menuliskan
+      # literalnya di komentar; itu membuat cacahnya dua dan run menjadi merah.
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -36,7 +41,7 @@ jobs:
       # benar-benar versi yang berjalan. Sebelumnya paket dipasang eksplisit di
       # sini sementara manifes hanya berfungsi sebagai kunci cache, sehingga
       # angka di manifes tidak mengikat apa pun. numpy dibiarkan tak dipatok:
-      # ia masuk sebagai dependensi pandas, dan mematoknya pernah memicu
+      # ia masuk sebagai dependensi pandas, dan mematoknya berisiko memicu
       # konflik resolver.
       - name: Pasang dependensi
         run: |
