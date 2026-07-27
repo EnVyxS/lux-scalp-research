@@ -1,0 +1,105 @@
+name: tests
+
+on:
+  push:
+    paths:
+      - 'lux_ltf/**'
+      - 'tests/**'
+      - '.github/workflows/tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  uji:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Pasang dependensi
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest numpy pandas pyarrow pyyaml
+
+      # Aturan 54 dan 60: cacah butir wajib terbaca walaupun pytest merah.
+      # Langkah ini berjalan SEBELUM pytest dan tidak boleh menggagalkan job.
+      - name: Cacah butir terkumpul
+        run: |
+          set +e
+          python -m pytest tests --collect-only -q > /tmp/kumpul.txt 2>&1
+          kode_kumpul=$?
+          set -e
+          butir=$(grep -cE '^tests/\S+::' /tmp/kumpul.txt)
+          if [ "$butir" = "0" ]; then
+            butir=$(grep -oE '[0-9]+ tests? collected' /tmp/kumpul.txt | head -n1 | grep -oE '[0-9]+')
+          fi
+          if [ -z "$butir" ]; then butir=0; fi
+          echo "BUTIR=$butir" >> $GITHUB_ENV
+          echo "KODE_KUMPUL=$kode_kumpul" >> $GITHUB_ENV
+          echo "Butir terkumpul: $butir"
+
+      - name: Jalankan pytest
+        run: |
+          set +e
+          python -m pytest tests -q -rf --tb=short > /tmp/pytest.txt 2>&1
+          kode=$?
+          set -e
+          echo "KODE=$kode" >> $GITHUB_ENV
+
+      - name: Susun laporan
+        run: |
+          mkdir -p reports
+          {
+            echo "# Uji — lux-scalp-research"
+            echo
+            echo "- commit: ${{ github.sha }}"
+            echo "- Butir terkumpul: ${BUTIR}"
+            echo "- Kode keluar kumpul: ${KODE_KUMPUL}"
+            echo "- Kode keluar pytest: ${KODE}"
+            echo
+            echo "## Baris FAILED/ERROR (tidak dipotong)"
+            echo
+            echo '```'
+            grep -E '^(FAILED|ERROR)' /tmp/pytest.txt || echo "(tidak ada)"
+            echo '```'
+            echo
+            echo "## Ekor keluaran (200 baris)"
+            echo
+            echo '```'
+            tail -n 200 /tmp/pytest.txt
+            echo '```'
+          } > reports/tests.md
+
+      # Laporan dikomit SEBELUM hasil ditegakkan, supaya kegagalan uji tetap
+      # meninggalkan bukti di repo.
+      - name: Komit laporan
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add reports/tests.md
+          if git diff --cached --quiet; then
+            echo "laporan tidak berubah"
+            exit 0
+          fi
+          git commit -m "reports/tests.md [skip ci]"
+          git pull --rebase --autostash
+          git push
+
+      - name: Tegakkan hasil
+        run: |
+          if [ "${KODE}" != "0" ]; then
+            echo "pytest gagal dengan kode ${KODE}"
+            exit 1
+          fi
+          echo "pytest hijau"
