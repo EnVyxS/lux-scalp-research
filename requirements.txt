@@ -1,0 +1,18 @@
+# Berkas ini WAJIB ada di akar repo, bahkan bila alur kerja memasang paket
+# secara eksplisit.
+#
+# Sebab: `actions/setup-python@v5` dengan `cache: 'pip'` menentukan kunci cache
+# dengan mencari `**/requirements.txt` atau `**/pyproject.toml`. Bila tidak ada
+# satu pun yang cocok, langkah setup-python GAGAL — bukan memberi peringatan.
+# Itulah sebab keempat run pertama repo ini merah pada 6-18 detik: mati di
+# setup-python, sebelum `pip install`, jauh sebelum pytest pernah berjalan.
+# `lux-research` memiliki berkas ini; repo ini tidak. Saya menyalin
+# `cache: 'pip'` tanpa menyalin berkas yang membuatnya sah.
+#
+# Versi mengikuti lingkungan runner `lux-research` supaya kesebandingan
+# antar-repo terjaga. numpy sengaja tidak dipatok: ia masuk sebagai dependensi
+# pandas, dan mematoknya pernah memicu konflik resolver.
+pandas==2.2.3
+pyarrow==17.0.0
+pyyaml==6.0.2
+pytest==9.1.1
