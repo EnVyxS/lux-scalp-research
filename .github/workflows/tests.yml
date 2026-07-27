@@ -32,19 +32,22 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pytest numpy pandas pyarrow pyyaml
 
-      # Aturan 54 dan 60: cacah butir wajib terbaca walaupun pytest merah.
-      # Langkah ini berjalan SEBELUM pytest dan tidak boleh menggagalkan job.
+      # Aturan 54 dan 60: cacah butir wajib terbaca walaupun pytest merah, dan
+      # walaupun pengumpulan itu sendiri gagal. Karena itu `set -e` baru
+      # dipulihkan SESUDAH seluruh grep selesai: grep yang tidak menemukan apa
+      # pun mengembalikan 1, dan di bawah `set -e` itu akan mematikan langkah
+      # ini sehingga medan BUTIR tidak pernah tertulis.
       - name: Cacah butir terkumpul
         run: |
           set +e
           python -m pytest tests --collect-only -q > /tmp/kumpul.txt 2>&1
           kode_kumpul=$?
-          set -e
           butir=$(grep -cE '^tests/\S+::' /tmp/kumpul.txt)
-          if [ "$butir" = "0" ]; then
+          if [ -z "$butir" ] || [ "$butir" = "0" ]; then
             butir=$(grep -oE '[0-9]+ tests? collected' /tmp/kumpul.txt | head -n1 | grep -oE '[0-9]+')
           fi
           if [ -z "$butir" ]; then butir=0; fi
+          set -e
           echo "BUTIR=$butir" >> $GITHUB_ENV
           echo "KODE_KUMPUL=$kode_kumpul" >> $GITHUB_ENV
           echo "Butir terkumpul: $butir"
@@ -60,6 +63,10 @@ jobs:
       - name: Susun laporan
         run: |
           mkdir -p reports
+          set +e
+          baris_gagal=$(grep -E '^(FAILED|ERROR)' /tmp/pytest.txt)
+          set -e
+          if [ -z "$baris_gagal" ]; then baris_gagal="(tidak ada)"; fi
           {
             echo "# Uji — lux-scalp-research"
             echo
@@ -71,7 +78,7 @@ jobs:
             echo "## Baris FAILED/ERROR (tidak dipotong)"
             echo
             echo '```'
-            grep -E '^(FAILED|ERROR)' /tmp/pytest.txt || echo "(tidak ada)"
+            echo "$baris_gagal"
             echo '```'
             echo
             echo "## Ekor keluaran (200 baris)"
