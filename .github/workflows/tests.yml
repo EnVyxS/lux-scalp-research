@@ -22,15 +22,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # `cache: 'pip'` menuntut adanya berkas dependensi di akar repo
+      # (`requirements.txt` atau `pyproject.toml`). Bila tidak ada, langkah ini
+      # GAGAL keras — itulah cacat 24 yang membuat keempat run pertama repo ini
+      # merah pada 6-18 detik, mati sebelum pytest. Pagarnya ada di
+      # tests/test_kebutuhan_pip.py.
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
           cache: 'pip'
 
+      # Dipasang DARI manifes, supaya versi yang dipatok di requirements.txt
+      # benar-benar versi yang berjalan. Sebelumnya paket dipasang eksplisit di
+      # sini sementara manifes hanya berfungsi sebagai kunci cache, sehingga
+      # angka di manifes tidak mengikat apa pun. numpy dibiarkan tak dipatok:
+      # ia masuk sebagai dependensi pandas, dan mematoknya pernah memicu
+      # konflik resolver.
       - name: Pasang dependensi
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest numpy pandas pyarrow pyyaml
+          python -m pip install -r requirements.txt numpy
 
       # Aturan 54 dan 60: cacah butir wajib terbaca walaupun pytest merah, dan
       # walaupun pengumpulan itu sendiri gagal. Karena itu `set -e` baru
@@ -38,6 +49,8 @@ jobs:
       # pun mengembalikan 1, dan di bawah `set -e` itu akan mematikan langkah
       # ini sehingga medan BUTIR tidak pernah tertulis.
       - name: Cacah butir terkumpul
+        env:
+          PYTHONPATH: .
         run: |
           set +e
           python -m pytest tests --collect-only -q > /tmp/kumpul.txt 2>&1
@@ -52,7 +65,12 @@ jobs:
           echo "KODE_KUMPUL=$kode_kumpul" >> $GITHUB_ENV
           echo "Butir terkumpul: $butir"
 
+      # PYTHONPATH disetel eksplisit, mencerminkan lux-research. Tanpa ini impor
+      # `lux_ltf` bergantung pada direktori kerja lewat `python -m pytest`, yang
+      # kebetulan benar tetapi tidak dinyatakan.
       - name: Jalankan pytest
+        env:
+          PYTHONPATH: .
         run: |
           set +e
           python -m pytest tests -q -rf --tb=short > /tmp/pytest.txt 2>&1

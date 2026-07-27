@@ -84,3 +84,27 @@ def test_kedua_alur_hadir():
     nama = {j.name for j in _alur()}
     for wajib in ("tests.yml", "probe_ltf.yml"):
         assert wajib in nama, f"alur {wajib} hilang; ada: {sorted(nama)}"
+
+
+def test_alur_uji_memasang_dari_manifes():
+    """Manifes harus menjadi sumber versi, bukan hanya kunci cache.
+
+    Sebelum utang 3 dilunasi, alur memasang paket secara eksplisit sementara
+    requirements.txt hanya dipakai untuk menghitung kunci cache. Akibatnya versi
+    yang dipatok di manifes tidak mengikat run mana pun.
+    """
+    isi = (DIR_ALUR / "tests.yml").read_text(encoding="utf-8")
+    assert "-r requirements.txt" in isi, (
+        "alur uji harus memasang dependensi dari requirements.txt"
+    )
+
+
+def test_alur_uji_menyetel_pythonpath():
+    """Impor `lux_ltf` tidak boleh bergantung pada direktori kerja saja.
+
+    `python -m pytest` menaruh direktori kerja di sys.path[0], sehingga impor
+    kebetulan berhasil tanpa PYTHONPATH. Kebetulan bukan invarian; lux-research
+    menyatakannya eksplisit dan repo ini harus sama.
+    """
+    isi = (DIR_ALUR / "tests.yml").read_text(encoding="utf-8")
+    assert "PYTHONPATH" in isi, "alur uji harus menyetel PYTHONPATH eksplisit"
